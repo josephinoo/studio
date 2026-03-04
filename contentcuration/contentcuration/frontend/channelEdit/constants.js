@@ -48,6 +48,11 @@ export const AssessmentItemTypeLabels = {
   [AssessmentItemTypes.INPUT_QUESTION]: 'questionTypeInput',
   [AssessmentItemTypes.PERSEUS_QUESTION]: 'questionTypePerseus',
   [AssessmentItemTypes.FREE_RESPONSE]: 'questionTypeFreeResponse',
+  [AssessmentItemTypes.MATCHING]: 'questionTypeMatching',
+  [AssessmentItemTypes.ORDERING]: 'questionTypeOrdering',
+  [AssessmentItemTypes.INLINE_CHOICE]: 'questionTypeInlineChoice',
+  [AssessmentItemTypes.DRAG_DROP]: 'questionTypeDragDrop',
+  [AssessmentItemTypes.FILL_BLANK]: 'questionTypeFillBlank',
 };
 
 export const TabNames = {

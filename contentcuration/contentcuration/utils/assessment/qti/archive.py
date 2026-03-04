@@ -37,7 +37,11 @@ from contentcuration.utils.assessment.qti.interaction_types.simple import Simple
 from contentcuration.utils.assessment.qti.interaction_types.text_based import (
     TextEntryInteraction,
 )
+from contentcuration.utils.assessment.qti.interaction_types.match import MatchInteraction, SimpleAssociableChoice, SimpleMatchSet
+from contentcuration.utils.assessment.qti.interaction_types.order import OrderInteraction
+from contentcuration.utils.assessment.qti.interaction_types.gap_match import GapMatchInteraction, GapText
 from contentcuration.utils.assessment.qti.prompt import Prompt
+import re
 
 
 choice_interactions = {
@@ -46,6 +50,10 @@ choice_interactions = {
     "true_false",
 }
 text_entry_interactions = {exercises.INPUT_QUESTION, exercises.FREE_RESPONSE}
+match_interactions = {"matching"}
+order_interactions = {"ordering"}
+gap_match_interactions = {"drag_drop", "fill_blank", "inline_choice"}
+
 
 
 def hex_to_qti_id(hex_string):
@@ -176,6 +184,138 @@ class QTIExerciseGenerator(ExerciseArchiveGenerator):
         )
         return interaction, response_declaration
 
+    def _create_match_interaction_and_response(
+        self, processed_data: Dict[str, Any]
+    ) -> Tuple[MatchInteraction, ResponseDeclaration]:
+        prompt_content = self._create_html_content_from_text(processed_data.get("question", ""))
+        prompt = Prompt(children=prompt_content) if prompt_content else None
+        
+        prompts = []
+        matches = []
+        correct_values = []
+        
+        for answer in processed_data.get("answers", []):
+            prompt_id = answer.get("promptId")
+            match_id = answer.get("matchId")
+            if not prompt_id or not match_id:
+                continue
+            
+            p_content = self._create_html_content_from_text(answer.get("prompt", ""))
+            m_content = self._create_html_content_from_text(answer.get("match", ""))
+            
+            prompts.append(SimpleAssociableChoice(identifier=prompt_id, match_max=1, children=p_content))
+            matches.append(SimpleAssociableChoice(identifier=match_id, match_max=1, children=m_content))
+            
+            correct_values.append(Value(value=f"{prompt_id} {match_id}"))
+            
+        interaction = MatchInteraction(
+            response_identifier="RESPONSE",
+            prompt=prompt,
+            shuffle=True,
+            max_associations=len(prompts),
+            children=[
+                SimpleMatchSet(children=prompts),
+                SimpleMatchSet(children=matches)
+            ]
+        )
+        
+        response_declaration = ResponseDeclaration(
+            identifier="RESPONSE",
+            cardinality=Cardinality.MULTIPLE,
+            base_type=BaseType.DIRECTED_PAIR,
+            correct_response=CorrectResponse(value=correct_values) if correct_values else None
+        )
+        
+        return interaction, response_declaration
+
+    def _create_order_interaction_and_response(
+        self, processed_data: Dict[str, Any]
+    ) -> Tuple[OrderInteraction, ResponseDeclaration]:
+        prompt_content = self._create_html_content_from_text(processed_data.get("question", ""))
+        prompt = Prompt(children=prompt_content) if prompt_content else None
+        
+        choices = []
+        correct_values = []
+        
+        answers = processed_data.get("answers", [])
+        sorted_answers = sorted(answers, key=lambda a: a.get("correctOrder", 0))
+        for answer in sorted_answers:
+            choice_id = answer.get("id")
+            if choice_id:
+                correct_values.append(Value(value=choice_id))
+            
+        for answer in answers:
+            choice_id = answer.get("id")
+            if not choice_id:
+                continue
+            content = self._create_html_content_from_text(answer.get("answer", ""))
+            choices.append(SimpleChoice(identifier=choice_id, children=content))
+            
+        interaction = OrderInteraction(
+            response_identifier="RESPONSE",
+            prompt=prompt,
+            shuffle=True,
+            children=choices
+        )
+        
+        response_declaration = ResponseDeclaration(
+            identifier="RESPONSE",
+            cardinality=Cardinality.ORDERED,
+            base_type=BaseType.IDENTIFIER,
+            correct_response=CorrectResponse(value=correct_values) if correct_values else None
+        )
+        
+        return interaction, response_declaration
+
+    def _create_gap_match_interaction_and_response(
+        self, processed_data: Dict[str, Any]
+    ) -> Tuple[GapMatchInteraction, ResponseDeclaration]:
+        answers_data = processed_data.get("answers", {})
+        if isinstance(answers_data, list):
+            choices_data = []
+            mapping_data = {}
+        else:
+            choices_data = answers_data.get("choices", [])
+            mapping_data = answers_data.get("correctMapping", {})
+            
+        question_text = processed_data.get("question", "")
+        
+        def replace_gap(match):
+            gap_id = match.group(1)
+            return f'<gap identifier="{gap_id}"/>'
+        
+        processed_question = re.sub(r'\[([^\]]+)\]', replace_gap, question_text)
+        children = self._create_html_content_from_text(processed_question)
+        
+        gap_texts = []
+        for choice in choices_data:
+            choice_id = choice.get("id")
+            if not choice_id:
+                continue
+            content = self._create_html_content_from_text(choice.get("answer", ""))
+            gap_texts.append(GapText(identifier=choice_id, match_max=1, children=content))
+            
+        correct_values = []
+        for gap_id, choice_id in mapping_data.items():
+            correct_values.append(Value(value=f"{choice_id} {gap_id}"))
+
+        interaction = GapMatchInteraction(
+            response_identifier="RESPONSE",
+            shuffle=True,
+            prompt=None,
+            gap_texts=gap_texts,
+            children=children
+        )
+        
+        response_declaration = ResponseDeclaration(
+            identifier="RESPONSE",
+            cardinality=Cardinality.MULTIPLE,
+            base_type=BaseType.DIRECTED_PAIR,
+            correct_response=CorrectResponse(value=correct_values) if correct_values else None
+        )
+        
+        return interaction, response_declaration
+
     def _qti_item_filepath(self, assessment_id):
         return f"items/{assessment_id}.xml"
 
@@ -200,6 +340,21 @@ class QTIExerciseGenerator(ExerciseArchiveGenerator):
                 interaction,
                 response_declaration,
             ) = self._create_text_entry_interaction_and_response(processed_data)
+        elif assessment_item.type in match_interactions:
+            (
+                interaction,
+                response_declaration,
+            ) = self._create_match_interaction_and_response(processed_data)
+        elif assessment_item.type in order_interactions:
+            (
+                interaction,
+                response_declaration,
+            ) = self._create_order_interaction_and_response(processed_data)
+        elif assessment_item.type in gap_match_interactions:
+            (
+                interaction,
+                response_declaration,
+            ) = self._create_gap_match_interaction_and_response(processed_data)
         else:
             raise ValueError(f"Unsupported question type: {assessment_item.type}")
 

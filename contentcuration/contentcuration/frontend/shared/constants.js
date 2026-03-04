@@ -159,6 +159,11 @@ export const AssessmentItemTypes = {
   INPUT_QUESTION: 'input_question',
   PERSEUS_QUESTION: 'perseus_question',
   FREE_RESPONSE: 'free_response',
+  MATCHING: 'matching',
+  ORDERING: 'ordering',
+  INLINE_CHOICE: 'inline_choice',
+  DRAG_DROP: 'drag_drop',
+  FILL_BLANK: 'fill_blank',
 };
 
 export const ValidationErrors = {

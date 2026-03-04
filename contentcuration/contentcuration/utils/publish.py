@@ -343,13 +343,22 @@ class TreeMapper:
 
             if node.kind_id == content_kinds.EXERCISE:
                 exercise_data = process_assessment_metadata(node)
-                any_free_response = any(
-                    t == exercises.FREE_RESPONSE
+                qti_types = {
+                    exercises.FREE_RESPONSE,
+                    "matching",
+                    "ordering",
+                    "inline_choice",
+                    "drag_drop",
+                    "fill_blank"
+                }
+
+                any_qti = any(
+                    t in qti_types
                     for t in exercise_data["assessment_mapping"].values()
                 )
                 generator_class = (
                     QTIExerciseGenerator
-                    if any_free_response
+                    if any_qti
                     else PerseusExerciseGenerator
                 )
 

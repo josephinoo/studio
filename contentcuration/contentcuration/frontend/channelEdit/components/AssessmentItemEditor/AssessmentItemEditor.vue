@@ -95,12 +95,31 @@
         />
 
         <AnswersEditor
+          v-if="kind === AssessmentItemTypes.SINGLE_SELECTION || kind === AssessmentItemTypes.MULTIPLE_SELECTION || kind === AssessmentItemTypes.TRUE_FALSE || kind === AssessmentItemTypes.INPUT_QUESTION"
           :questionKind="kind"
           :answers="answers"
           :openAnswerIdx="openAnswerIdx"
           @update="onAnswersUpdate"
           @open="openAnswer"
           @close="closeAnswer"
+        />
+
+        <MatchingAnswersEditor
+          v-else-if="kind === AssessmentItemTypes.MATCHING"
+          :answers="answers"
+          @update="onAnswersUpdate"
+        />
+
+        <OrderingAnswersEditor
+          v-else-if="kind === AssessmentItemTypes.ORDERING"
+          :answers="answers"
+          @update="onAnswersUpdate"
+        />
+
+        <GapMatchAnswersEditor
+          v-else-if="kind === AssessmentItemTypes.FILL_BLANK || kind === AssessmentItemTypes.DRAG_DROP || kind === AssessmentItemTypes.INLINE_CHOICE"
+          :answers="answers"
+          @update="onAnswersUpdate"
         />
 
         <HintsEditor
@@ -124,6 +143,9 @@
 
   import HintsEditor from '../HintsEditor/HintsEditor';
   import AnswersEditor from '../AnswersEditor/AnswersEditor';
+  import MatchingAnswersEditor from '../AnswersEditor/MatchingAnswersEditor';
+  import OrderingAnswersEditor from '../AnswersEditor/OrderingAnswersEditor';
+  import GapMatchAnswersEditor from '../AnswersEditor/GapMatchAnswersEditor';
   import translator from '../../translator';
   import { updateAnswersToQuestionType, assessmentItemKey } from '../../utils';
   import { AssessmentItemTypeLabels } from '../../constants';
@@ -144,6 +166,9 @@
       DropdownWrapper,
       ErrorList,
       AnswersEditor,
+      MatchingAnswersEditor,
+      OrderingAnswersEditor,
+      GapMatchAnswersEditor,
       HintsEditor,
       TipTapEditor,
     },
@@ -245,6 +270,26 @@
           {
             value: AssessmentItemTypes.TRUE_FALSE,
             text: translator.$tr(AssessmentItemTypeLabels[AssessmentItemTypes.TRUE_FALSE]),
+          },
+          {
+            value: AssessmentItemTypes.MATCHING,
+            text: translator.$tr(AssessmentItemTypeLabels[AssessmentItemTypes.MATCHING]),
+          },
+          {
+            value: AssessmentItemTypes.ORDERING,
+            text: translator.$tr(AssessmentItemTypeLabels[AssessmentItemTypes.ORDERING]),
+          },
+          {
+            value: AssessmentItemTypes.FILL_BLANK,
+            text: translator.$tr(AssessmentItemTypeLabels[AssessmentItemTypes.FILL_BLANK]),
+          },
+          {
+            value: AssessmentItemTypes.DRAG_DROP,
+            text: translator.$tr(AssessmentItemTypeLabels[AssessmentItemTypes.DRAG_DROP]),
+          },
+          {
+            value: AssessmentItemTypes.INLINE_CHOICE,
+            text: translator.$tr(AssessmentItemTypeLabels[AssessmentItemTypes.INLINE_CHOICE]),
           },
         ];
 

@@ -136,6 +136,13 @@ export function updateAnswersToQuestionType(questionType, answers) {
 
       return newAnswers;
     }
+
+    case AssessmentItemTypes.MATCHING:
+    case AssessmentItemTypes.ORDERING:
+    case AssessmentItemTypes.FILL_BLANK:
+    case AssessmentItemTypes.DRAG_DROP:
+    case AssessmentItemTypes.INLINE_CHOICE:
+      return [];
   }
 }
 

@@ -446,14 +446,22 @@ export function sanitizeAssessmentItemAnswers(answers, removeEmpty = false) {
 
   let sanitizedAnswers = answers.map(answer => {
     let answerText = answer.answer;
-    if (typeof answerText !== 'number') {
+    if (typeof answerText !== 'number' && answerText !== undefined) {
       answerText = answerText ? answerText.trim() : '';
     }
 
-    return {
-      ...answer,
-      answer: answerText,
-    };
+    const result = { ...answer };
+    if (answerText !== undefined) {
+      result.answer = answerText;
+    }
+    if (typeof answer.prompt === 'string') {
+      result.prompt = answer.prompt.trim();
+    }
+    if (typeof answer.match === 'string') {
+      result.match = answer.match.trim();
+    }
+    
+    return result;
   });
 
   if (removeEmpty) {
@@ -576,6 +584,96 @@ export function getAssessmentItemErrors(assessmentItem, freeResponseInvalid = fa
         errors.push(ValidationErrors.INVALID_NUMBER_OF_CORRECT_ANSWERS);
       }
       break;
+
+    case AssessmentItemTypes.MATCHING:
+      if (!assessmentItem.answers || assessmentItem.answers.length < 2) {
+        errors.push(ValidationErrors.INVALID_NUMBER_OF_CORRECT_ANSWERS);
+      } else {
+        const prompts = new Set();
+        let hasEmpty = false;
+        let hasDuplicate = false;
+        
+        for (const ans of assessmentItem.answers) {
+          if (!ans.prompt || !ans.match || !ans.prompt.trim() || !ans.match.trim()) {
+            hasEmpty = true;
+          }
+          if (ans.prompt && prompts.has(ans.prompt.trim())) {
+            hasDuplicate = true;
+          }
+          if (ans.prompt) {
+            prompts.add(ans.prompt.trim());
+          }
+        }
+        
+        if (hasEmpty || hasDuplicate) {
+          errors.push(ValidationErrors.INVALID_NUMBER_OF_CORRECT_ANSWERS);
+        }
+      }
+      break;
+
+    case AssessmentItemTypes.ORDERING:
+      if (!assessmentItem.answers || assessmentItem.answers.length < 2) {
+        errors.push(ValidationErrors.INVALID_NUMBER_OF_CORRECT_ANSWERS);
+      } else {
+        const orders = new Set();
+        let hasEmpty = false;
+        let hasInvalidOrder = false;
+
+        for (const ans of assessmentItem.answers) {
+          if (!ans.answer || !String(ans.answer).trim()) {
+            hasEmpty = true;
+          }
+          if (typeof ans.correctOrder !== 'number' || orders.has(ans.correctOrder)) {
+            hasInvalidOrder = true;
+          }
+          orders.add(ans.correctOrder);
+        }
+        
+        // Verify we have exact orders from 1 to N (or 0 to N-1)
+        const expectedOrders = Array.from({ length: assessmentItem.answers.length }, (_, i) => i + 1); // assuming 1-based order
+        const expectedOrdersZero = Array.from({ length: assessmentItem.answers.length }, (_, i) => i); // assuming 0-based order
+        
+        const sortedOrders = Array.from(orders).sort((a,b) => a - b);
+        const matchesOneBased = JSON.stringify(sortedOrders) === JSON.stringify(expectedOrders);
+        const matchesZeroBased = JSON.stringify(sortedOrders) === JSON.stringify(expectedOrdersZero);
+        
+        if (hasEmpty || hasInvalidOrder || (!matchesOneBased && !matchesZeroBased)) {
+          errors.push(ValidationErrors.INVALID_NUMBER_OF_CORRECT_ANSWERS); // Will map to a generic "invalid" answer error on the UI
+        }
+      }
+      break;
+
+    case AssessmentItemTypes.FILL_BLANK:
+    case AssessmentItemTypes.DRAG_DROP:
+    case AssessmentItemTypes.INLINE_CHOICE: {
+      // Validate gaps. E.g. gap_1 in template must be matched in answers or correctMapping
+      // As per schema, choices and correctMapping might be in extra properties or we can check answers array.
+      // We'll roughly check if it has valid responses defined.
+      const hasGaps = (assessmentItem.question || '').match(/\[gap_[\w]+\]/g);
+      const isMissingGaps = !hasGaps || hasGaps.length === 0;
+      
+      let isInvalidMapping = false;
+      
+      if (assessmentItem.answers && !Array.isArray(assessmentItem.answers) && assessmentItem.answers.correctMapping) {
+         const mapping = assessmentItem.answers.correctMapping;
+         if (hasGaps) {
+           for (const gap of hasGaps) {
+             const gapId = gap.replace('[', '').replace(']', '');
+             if (!mapping[gapId]) {
+               isInvalidMapping = true;
+             }
+           }
+         }
+      } else if (!hasAtLeatOneCorrectAnswer && !Array.isArray(assessmentItem.answers) && (!assessmentItem.answers || !assessmentItem.answers.choices)) {
+         // Fallback validation if not fully shaped yet
+         isInvalidMapping = Array.isArray(assessmentItem.answers) && assessmentItem.answers.length === 0;
+      }
+      
+      if (isMissingGaps || isInvalidMapping) {
+        errors.push(ValidationErrors.INVALID_NUMBER_OF_CORRECT_ANSWERS);
+      }
+      break;
+    }
   }
 
   return errors;
